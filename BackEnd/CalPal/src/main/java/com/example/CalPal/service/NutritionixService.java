@@ -1,11 +1,15 @@
 package com.example.CalPal.service;
 
+import com.example.CalPal.dto.NutritionInfoDTO;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import com.example.CalPal.dto.NutritionInfoDTO;
-import org.json.*;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 public class NutritionixService {
@@ -17,12 +21,14 @@ public class NutritionixService {
     private String apiKey;
 
     private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
 
-    public NutritionixService(RestTemplate restTemplate) {
+    public NutritionixService(RestTemplate restTemplate, ObjectMapper objectMapper) {
         this.restTemplate = restTemplate;
+        this.objectMapper = objectMapper;
     }
 
-    // For natural language queries like "1 egg"
+    // Natural language query (e.g., "1 egg")
     public NutritionInfoDTO getNutritionInfo(String query) {
         String url = "https://trackapi.nutritionix.com/v2/natural/nutrients";
 
@@ -31,29 +37,32 @@ public class NutritionixService {
         headers.set("x-app-key", apiKey);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        JSONObject requestJson = new JSONObject();
-        requestJson.put("query", query);
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("query", query);
 
-        HttpEntity<String> entity = new HttpEntity<>(requestJson.toString(), headers);
+        HttpEntity<Map<String, String>> entity = new HttpEntity<>(requestBody, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
 
         if (response.getStatusCode() == HttpStatus.OK) {
-            JSONObject json = new JSONObject(response.getBody());
-            JSONArray foods = json.getJSONArray("foods");
-
-            if (!foods.isEmpty()) {
-                JSONObject food = foods.getJSONObject(0);
-                return new NutritionInfoDTO(
-                        food.optDouble("nf_calories", 0),
-                        food.optDouble("nf_total_fat", 0),
-                        food.optDouble("nf_total_carbohydrate", 0),
-                        food.optDouble("nf_protein", 0));
+            try {
+                JsonNode root = objectMapper.readTree(response.getBody());
+                JsonNode foods = root.path("foods");
+                if (foods.isArray() && foods.size() > 0) {
+                    JsonNode food = foods.get(0);
+                    return new NutritionInfoDTO(
+                            food.path("nf_calories").asDouble(0),
+                            food.path("nf_total_fat").asDouble(0),
+                            food.path("nf_total_carbohydrate").asDouble(0),
+                            food.path("nf_protein").asDouble(0));
+                }
+            } catch (Exception e) {
+                e.printStackTrace(); // Consider using logger
             }
         }
         return new NutritionInfoDTO(0, 0, 0, 0);
     }
 
-    // ✅ For UPC code scanning
+    // UPC Code
     public NutritionInfoDTO getFoodByUPC(String upc) {
         String url = "https://trackapi.nutritionix.com/v2/search/item?upc=" + upc;
 
@@ -65,15 +74,22 @@ public class NutritionixService {
         ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
 
         if (response.getStatusCode() == HttpStatus.OK) {
-            JSONObject json = new JSONObject(response.getBody());
-            JSONObject food = json.getJSONObject("foods");
-
-            return new NutritionInfoDTO(
-                    food.optDouble("nf_calories", 0),
-                    food.optDouble("nf_total_fat", 0),
-                    food.optDouble("nf_total_carbohydrate", 0),
-                    food.optDouble("nf_protein", 0));
+            try {
+                JsonNode root = objectMapper.readTree(response.getBody());
+                JsonNode foods = root.path("foods");
+                if (foods.isArray() && foods.size() > 0) {
+                    JsonNode food = foods.get(0); // Get first item in array
+                    return new NutritionInfoDTO(
+                            food.path("nf_calories").asDouble(0),
+                            food.path("nf_total_fat").asDouble(0),
+                            food.path("nf_total_carbohydrate").asDouble(0),
+                            food.path("nf_protein").asDouble(0));
+                }
+            } catch (Exception e) {
+                e.printStackTrace(); // Consider using logger
+            }
         }
+
         return new NutritionInfoDTO(0, 0, 0, 0);
     }
 }

@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/nutritionix")
-@RequiredArgsConstructor
 public class NutritionixController {
 
     @Autowired
