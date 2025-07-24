@@ -20,8 +20,7 @@ public class MealEntryController {
     private final MealEntryRepository mealRepo;
 
     @GetMapping("/{userId}/{date}")
-    public List<MealEntry> getMealsByUserAndDate(
-            @PathVariable Long userId,
+    public List<MealEntry> getMealsByUserAndDate(@PathVariable Long userId,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return mealRepo.findByUserIdAndDate(userId, date);
     }
